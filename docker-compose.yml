@@ -1,0 +1,38 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: nutri_mongo
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: root
+
+  backend:
+    build: ./backend
+    container_name: nutri_backend
+    restart: always
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mongo
+    env_file:
+      - ./backend/.env
+    environment:
+      MONGO_URI: mongodb://root:root@mongo:27017/nutriplus?authSource=admin
+      PORT: 3000
+
+  frontend:
+    build: ./frontend/nutri
+    container_name: nutri_frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  mongo_data:
