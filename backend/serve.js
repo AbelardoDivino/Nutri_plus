@@ -14,6 +14,7 @@ app.use(cookieParser());
 app.get('/health', (req, res) => res.json({ ok: true }));
 
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/pagamento', require('./routes/pagamento'));
 
 const PORT = process.env.PORT || 3000;
 mongoose.connect(process.env.MONGO_URI).then(() => {
