@@ -1,0 +1,9 @@
+node_modules/
+backend/node_modules/
+frontend/nutri/node_modules/
+backend/.env
+frontend/nutri/.env
+.env
+.DS_Store
+dist/
+build/
