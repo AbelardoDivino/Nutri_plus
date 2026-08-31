@@ -8,7 +8,15 @@ const userSchema = new mongoose.Schema({
   googleId: { type: String, sparse: true },
   foto: { type: String },
   role: { type: String, enum: ['admin', 'usuario', 'nutricionista', 'personal'], default: 'usuario' },
-  ativo: { type: Boolean, default: true }
+  adminRef: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  ativo: { type: Boolean, default: true },
+  // Dados iniciais do usuário (para já cair no painel do profissional)
+  altura: { type: Number },
+  peso: { type: Number },
+  idade: { type: Number },
+  sexo: { type: String, enum: ['masculino', 'feminino', 'outro'] },
+  nivelAtividade: { type: String, enum: ['sedentario', 'leve', 'moderado', 'ativo', 'muito_ativo'] },
+  objetivo: { type: String, enum: ['emagrecimento', 'hipertrofia', 'manutencao', 'condicionamento', 'saude'] }
 }, { timestamps: true });
 
 userSchema.pre('save', async function () {

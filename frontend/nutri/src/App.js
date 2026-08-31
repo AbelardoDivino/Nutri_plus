@@ -1,9 +1,34 @@
-function App() {
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import Navbar from './components/Navbar';
+import ProtectedRoute from './components/ProtectedRoute';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import Dashboard from './pages/Dashboard';
+import Clientes from './pages/Clientes';
+import Avaliacao from './pages/Avaliacao';
+import Dieta from './pages/Dieta';
+import Treino from './pages/Treino';
+import Checkout from './pages/Checkout';
+import Admin from './pages/Admin';
+import RegisterProfissional from './pages/RegisterProfissional';
+
+export default function App() {
   return (
-    <div className="App">
-    
-    </div>
+    <BrowserRouter>
+      <Navbar />
+      <Routes>
+        <Route path="/" element={<Navigate to="/dashboard" />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/register-profissional" element={<RegisterProfissional />} />
+        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/clientes" element={<ProtectedRoute roles={['admin','nutricionista','personal']}><Clientes /></ProtectedRoute>} />
+        <Route path="/avaliacao" element={<ProtectedRoute><Avaliacao /></ProtectedRoute>} />
+        <Route path="/dieta" element={<ProtectedRoute><Dieta /></ProtectedRoute>} />
+        <Route path="/treino" element={<ProtectedRoute><Treino /></ProtectedRoute>} />
+        <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
+        <Route path="/admin" element={<ProtectedRoute roles={['admin']}><Admin /></ProtectedRoute>} />
+      </Routes>
+    </BrowserRouter>
   );
 }
-
-export default App;
