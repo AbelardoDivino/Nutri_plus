@@ -1,11 +1,11 @@
 const express = require('express');
 const Treino = require('../models/Treino');
-const { verifyToken, isProfissional } = require('../middlewares/authJWT');
+const { verifyToken, isProfissional, isPersonal } = require('../middlewares/authJWT');
 const { gerarTreinoOpenAI } = require('../api_alimentos/api_alimentos');
 const router = express.Router();
 
 // Profissional gera treino (personal)
-router.post('/gerar', verifyToken, isProfissional, async (req, res) => {
+router.post('/gerar', verifyToken, isPersonal, async (req, res) => {
   try {
     const { cliente, user, objetivo = 'hipertrofia', nivel = 'iniciante', frequencia = 3, avaliacao } = req.body;
     const dias = await gerarTreinoOpenAI({ objetivo, nivel, frequencia });
@@ -38,7 +38,7 @@ router.get('/:id', verifyToken, async (req, res) => {
   res.json(t);
 });
 
-router.put('/:id', verifyToken, isProfissional, async (req, res) => {
+router.put('/:id', verifyToken, isPersonal, async (req, res) => {
   const t = await Treino.findOneAndUpdate({ _id: req.params.id, profissional: req.user.id }, req.body, { new: true });
   if (!t) return res.status(404).json({ msg: 'Não encontrado' });
   res.json(t);

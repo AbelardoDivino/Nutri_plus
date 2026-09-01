@@ -1,8 +1,14 @@
 const express = require('express');
+const { body, validationResult } = require('express-validator');
 const Cliente = require('../models/Cliente');
 const User = require('../models/User');
 const { verifyToken, isProfissional } = require('../middlewares/authJWT');
 const router = express.Router();
+const validate = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ msg: 'Validação falhou', errors: errors.array() });
+  next();
+};
 
 // Profissional lista seus clientes (coleção Cliente)
 router.get('/', verifyToken, isProfissional, async (req, res) => {
@@ -23,7 +29,7 @@ router.get('/meu-profissional', verifyToken, async (req, res) => {
 });
 
 // Criar cliente (profissional)
-router.post('/', verifyToken, isProfissional, async (req, res) => {
+router.post('/', verifyToken, isProfissional, [body('nome').notEmpty().trim()], validate, async (req, res) => {
   try {
     const { nome, email, telefone, dataNascimento, sexo, objetivo, observacoes, user } = req.body;
     if (!nome) return res.status(400).json({ msg: 'Nome obrigatório' });

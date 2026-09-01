@@ -1,4 +1,5 @@
 const express = require('express');
+const { body, validationResult } = require('express-validator');
 
 const {
     register,
@@ -19,11 +20,17 @@ const {
 
 const router = express.Router();
 
+const validate = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ msg: 'Validação falhou', errors: errors.array() });
+  next();
+};
+
 // Rotas públicas
-router.post('/register', register);
-router.post('/login', login);
-router.post('/google', googleLogin);
-router.post('/refresh', refresh);
+router.post('/register', [body('nome').notEmpty().trim(), body('email').isEmail().normalizeEmail(), body('senha').isLength({ min: 6 })], validate, register);
+router.post('/login', [body('email').isEmail(), body('senha').notEmpty()], validate, login);
+router.post('/google', [body('idToken').notEmpty()], validate, googleLogin);
+router.post('/refresh', [body('refresh').notEmpty()], validate, refresh);
 
 // Rotas autenticadas
 router.get('/me', verifyToken, me);

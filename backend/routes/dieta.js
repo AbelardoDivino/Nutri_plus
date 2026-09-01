@@ -1,13 +1,13 @@
 const express = require('express');
 const Dieta = require('../models/Dieta');
 const Avaliacao = require('../models/Avaliacao');
-const { verifyToken, isProfissional } = require('../middlewares/authJWT');
+const { verifyToken, isProfissional, isNutricionista } = require('../middlewares/authJWT');
 const { calcularAvaliacaoCompleta } = require('../services/caloriaAPI');
 const { gerarDietaOpenAI } = require('../api_alimentos/api_alimentos');
 const router = express.Router();
 
 // Profissional gera dieta (nutricionista)
-router.post('/gerar', verifyToken, isProfissional, async (req, res) => {
+router.post('/gerar', verifyToken, isNutricionista, async (req, res) => {
   try {
     const { cliente, user, avaliacaoId, caloriasAlvo: calManual, objetivo, restricoes } = req.body;
     let caloriasAlvo = calManual;
