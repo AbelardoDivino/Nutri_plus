@@ -19,6 +19,7 @@ app.use('/api/clientes', require('./routes/cliente'));
 app.use('/api/avaliacao', require('./routes/avaliacao'));
 app.use('/api/dieta', require('./routes/dieta'));
 app.use('/api/treino', require('./routes/treino'));
+app.use('/api/alimentos', require('./routes/alimentos'));
 
 const PORT = process.env.PORT || 3000;
 
@@ -33,9 +34,23 @@ if (missing.length) {
 if (!process.env.GOOGLE_CLIENT_ID) console.warn('AVISO: GOOGLE_CLIENT_ID não configurado - login Google desabilitado');
 if (!process.env.MERCADOPAGO_ACCESS_TOKEN) console.warn('AVISO: MERCADOPAGO_ACCESS_TOKEN não configurado - pagamentos desabilitados');
 
-mongoose.connect(process.env.MONGO_URI).then(async () => {
-  console.log('Mongo conectado');
-  // Garante índices e cria admin inicial se não existir (tabela users)
+async function start() {
+  const primary = process.env.MONGO_URI;
+  const fallback = 'mongodb://root:root@localhost:27017/nutriplus?authSource=admin';
+  let connected = false;
+  for (const uri of [primary, fallback]) {
+    if (!uri) continue;
+    try {
+      await mongoose.connect(uri);
+      console.log('Mongo conectado');
+      connected = true;
+      break;
+    } catch (e) {
+      console.error('Falha Mongo', e.message);
+      if (uri === fallback) throw e;
+    }
+  }
+  if (!connected) throw new Error('Nenhum Mongo conectado');
   try {
     const User = require('./models/User');
     await User.init();
@@ -49,7 +64,5 @@ mongoose.connect(process.env.MONGO_URI).then(async () => {
     }
   } catch (e) { console.warn('Seed check falhou:', e.message); }
   app.listen(PORT, () => console.log('API rodando na porta ' + PORT));
-}).catch(e => {
-  console.error('Erro Mongo', e.message);
-  process.exit(1);
-});
+}
+start().catch(e => { console.error('Erro Mongo final', e.message); console.error('Dica Atlas: libere seu IP em https://cloud.mongodb.com -> Network Access -> Add IP Address (0.0.0.0/0 para teste)'); process.exit(1); });

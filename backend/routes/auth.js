@@ -17,8 +17,12 @@ const {
     verifyToken,
     isAdmin
 } = require('../middlewares/authJWT');
+const { limiter } = require('../middlewares/rateLimiter');
 
 const router = express.Router();
+// Limite: 10 logins/min por IP, teste de limites
+const loginLimiter = limiter({ windowMs: 60000, max: 10 });
+const googleLimiter = limiter({ windowMs: 60000, max: 20 });
 
 const validate = (req, res, next) => {
   const errors = validationResult(req);
@@ -28,8 +32,8 @@ const validate = (req, res, next) => {
 
 // Rotas públicas
 router.post('/register', [body('nome').notEmpty().trim(), body('email').isEmail().normalizeEmail(), body('senha').isLength({ min: 6 })], validate, register);
-router.post('/login', [body('email').isEmail(), body('senha').notEmpty()], validate, login);
-router.post('/google', [body('idToken').notEmpty()], validate, googleLogin);
+router.post('/login', loginLimiter, [body('email').isEmail(), body('senha').notEmpty()], validate, login);
+router.post('/google', googleLimiter, [body('idToken').notEmpty()], validate, googleLogin);
 router.post('/refresh', [body('refresh').notEmpty()], validate, refresh);
 
 // Rotas autenticadas

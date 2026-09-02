@@ -6,10 +6,10 @@ const { calcularAvaliacaoCompleta } = require('../services/caloriaAPI');
 const { gerarDietaOpenAI } = require('../api_alimentos/api_alimentos');
 const router = express.Router();
 
-// Profissional gera dieta (nutricionista)
+// Profissional gera dieta (nutricionista) - suporta manual e automático sem quebrar
 router.post('/gerar', verifyToken, isNutricionista, async (req, res) => {
   try {
-    const { cliente, user, avaliacaoId, caloriasAlvo: calManual, objetivo, restricoes } = req.body;
+    const { cliente, user, avaliacaoId, caloriasAlvo: calManual, objetivo, restricoes, refeicoes: refeicoesManuais } = req.body;
     let caloriasAlvo = calManual;
     let macros = null;
     let avaliacao = null;
@@ -20,10 +20,24 @@ router.post('/gerar', verifyToken, isNutricionista, async (req, res) => {
       const calc = calcularAvaliacaoCompleta({ peso: avaliacao.peso, altura: avaliacao.altura, idade: avaliacao.idade, sexo: avaliacao.sexo, nivelAtividade: avaliacao.nivelAtividade, objetivo: avaliacao.objetivo });
       macros = calc.macros;
     } else {
-      if (!caloriasAlvo) return res.status(400).json({ msg: 'caloriasAlvo ou avaliacaoId obrigatório' });
+      if (!caloriasAlvo && !refeicoesManuais) return res.status(400).json({ msg: 'caloriasAlvo ou avaliacaoId ou refeicoes obrigatório' });
+      if (!caloriasAlvo && refeicoesManuais) caloriasAlvo = refeicoesManuais.reduce((s, r) => s + (r.calorias || 0), 0) || 2000;
       macros = { proteinas: 120, carboidratos: 250, gorduras: 70 };
+      if (avaliacaoId) {
+        const calc = calcularAvaliacaoCompleta({ peso: avaliacao.peso, altura: avaliacao.altura, idade: avaliacao.idade, sexo: avaliacao.sexo, nivelAtividade: avaliacao.nivelAtividade, objetivo: avaliacao.objetivo });
+        macros = calc.macros;
+      }
     }
-    const dietaIA = await gerarDietaOpenAI({ caloriasAlvo, macros, restricoes, objetivo: objetivo || avaliacao?.objetivo || 'manutencao' });
+    // Se profissional enviou refeicoes manuais, usa elas (montagem manual)
+    let refeicoesFinais;
+    let fonte = 'manual';
+    if (refeicoesManuais && Array.isArray(refeicoesManuais) && refeicoesManuais.length) {
+      refeicoesFinais = refeicoesManuais;
+    } else {
+      const dietaIA = await gerarDietaOpenAI({ caloriasAlvo, macros, restricoes, objetivo: objetivo || avaliacao?.objetivo || 'manutencao' });
+      refeicoesFinais = dietaIA.refeicoes || dietaIA;
+      fonte = 'openai';
+    }
     const dieta = await Dieta.create({
       cliente: cliente || null,
       user: user || null,
@@ -31,8 +45,8 @@ router.post('/gerar', verifyToken, isNutricionista, async (req, res) => {
       avaliacao: avaliacao?._id || null,
       caloriasAlvo,
       macros,
-      refeicoes: dietaIA.refeicoes || dietaIA,
-      fonte: 'openai'
+      refeicoes: refeicoesFinais,
+      fonte
     });
     res.status(201).json(dieta);
   } catch (e) { res.status(500).json({ msg: e.message }); }

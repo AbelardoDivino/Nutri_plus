@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
+import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -17,7 +18,7 @@ export default function App() {
     <BrowserRouter>
       <Navbar />
       <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" />} />
+        <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/register-profissional" element={<RegisterProfissional />} />
@@ -28,7 +29,9 @@ export default function App() {
         <Route path="/treino" element={<ProtectedRoute><Treino /></ProtectedRoute>} />
         <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute roles={['admin']}><Admin /></ProtectedRoute>} />
+        <Route path="*" element={<Navigate to="/" />} />
       </Routes>
+      <footer style={{ textAlign: 'center', padding: 20, color: 'var(--muted)', fontSize: 13 }}>© 2026 Nutri+ • Dieta e treino com TACO API • Pagamentos Mercado Pago</footer>
     </BrowserRouter>
   );
 }

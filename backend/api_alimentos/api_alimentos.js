@@ -7,6 +7,87 @@ function getOpenAI() {
   return openai;
 }
 
+// === SUA BASE TACO 100% GRÁTIS - PRIORIDADE 1 ===
+const ALIMENTOS_FALLBACK = [
+  { nome: 'Arroz, branco, cozido', kcal: 128, porcao: '100g' },
+  { nome: 'Feijão, carioca, cozido', kcal: 76, porcao: '100g' },
+  { nome: 'Frango, peito, grelhado', kcal: 159, porcao: '100g' },
+  { nome: 'Ovo, de galinha, cozido', kcal: 146, porcao: '100g' },
+  { nome: 'Banana, prata', kcal: 98, porcao: '100g' },
+  { nome: 'Pão, francês', kcal: 300, porcao: '100g' },
+  { nome: 'Leite, integral', kcal: 61, porcao: '100ml' },
+  { nome: 'Batata, inglesa, cozida', kcal: 52, porcao: '100g' },
+  { nome: 'Alface, crua', kcal: 11, porcao: '100g' },
+  { nome: 'Maçã, fuji, com casca', kcal: 56, porcao: '100g' },
+  { nome: 'Aveia, flocos', kcal: 394, porcao: '100g' },
+  { nome: 'Iogurte, natural', kcal: 51, porcao: '100g' },
+];
+
+const MAPA_REFEICAO = {
+  cafe: ['aveia', 'pão', 'leite', 'ovo', 'banana', 'iogurte', 'maçã'],
+  almoco: ['arroz', 'feijão', 'frango', 'batata', 'alface', 'ovo'],
+  janta: ['arroz', 'feijão', 'frango', 'salada', 'alface', 'batata', 'ovo'],
+};
+
+async function buscarNaApiTaco(termo) {
+  const url = `https://taco-food-api.herokuapp.com/foods?description=${encodeURIComponent(termo)}`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
+    if (!res.ok) return null;
+    const dados = await res.json();
+    const lista = Array.isArray(dados) ? dados : dados.foods || [];
+    if (!lista.length) return null;
+    const item = lista[0];
+    const kcal = item.energy?.kcal ?? item.kcal ?? item.energy_kcal ?? item.calories ?? null;
+    if (!kcal) return null;
+    return { nome: item.description || item.name || termo, kcal: Number(kcal), porcao: '100g', fonte: 'TACO API' };
+  } catch { clearTimeout(timeout); return null; }
+}
+
+function buscarFallback(termo) {
+  const t = termo.toLowerCase();
+  const found = ALIMENTOS_FALLBACK.find((a) => a.nome.toLowerCase().includes(t));
+  return found ? { ...found, fonte: 'TACO (base local)' } : null;
+}
+
+async function buscarAlimento(termo) {
+  const api = await buscarNaApiTaco(termo);
+  if (api) return api;
+  return buscarFallback(termo);
+}
+
+function buscarFallbackLista(termo, limite = 10) {
+  const t = termo.toLowerCase().trim();
+  if (!t) return [];
+  return ALIMENTOS_FALLBACK.filter((a) => a.nome.toLowerCase().includes(t)).slice(0, limite).map((a) => ({ ...a, fonte: 'TACO (base local)' }));
+}
+
+async function buscarAlimentosParaConsulta(termo) {
+  const lista = buscarFallbackLista(termo);
+  const api = await buscarNaApiTaco(termo);
+  if (api && !lista.some((a) => a.nome === api.nome)) lista.unshift(api);
+  return lista.slice(0, 10);
+}
+
+async function montarRefeicao(termos, caloriasAlvo) {
+  const itens = [];
+  let total = 0;
+  for (const termo of termos) {
+    const alimento = await buscarAlimento(termo);
+    if (!alimento) continue;
+    const fator = Math.min(1.5, Math.max(0.5, caloriasAlvo / 3 / alimento.kcal));
+    const kcalPorcao = Math.round(alimento.kcal * fator);
+    itens.push({ alimento: alimento.nome, porcao: alimento.porcao, kcal: kcalPorcao, fonte: alimento.fonte });
+    total += kcalPorcao;
+    if (total >= caloriasAlvo * 0.85) break;
+  }
+  return { itens, calorias: total, meta: caloriasAlvo, texto: itens.map((i) => `${i.alimento} (${i.kcal} kcal)`).join('; ') || 'Sem itens' };
+}
+
+// === OUTRAS APIS (FALLBACK) ===
 async function buscarEdamam(ingrediente) {
   if (!process.env.EDAMAM_APP_ID || !process.env.EDAMAM_APP_KEY) return null;
   try {
@@ -16,7 +97,6 @@ async function buscarEdamam(ingrediente) {
   } catch { return null; }
 }
 
-// 100% GRÁTIS - sem cartão
 async function buscarCalorieNinjas(query) {
   if (!process.env.CALORIENINJAS_API_KEY) return null;
   try {
@@ -52,26 +132,18 @@ async function buscarUSDA(query) {
 }
 
 async function buscarAlimentoUniversal(query) {
-  // Cascata grátis: CalorieNinjas -> OpenFoodFacts -> USDA -> Edamam -> null (mock)
-  return (await buscarCalorieNinjas(query)) || (await buscarOpenFoodFacts(query)) || (await buscarUSDA(query)) || (await buscarEdamam(query)) || null;
+  // Cascata com TACO prioritário (grátis e brasileiro)
+  return (await buscarAlimento(query)) || (await buscarCalorieNinjas(query)) || (await buscarOpenFoodFacts(query)) || (await buscarUSDA(query)) || (await buscarEdamam(query)) || null;
 }
 
 async function gerarDietaOpenAI({ caloriasAlvo, macros, restricoes = '', objetivo = 'manutencao' }) {
   const client = getOpenAI();
-  if (!client) {
-    return gerarDietaMock(caloriasAlvo, macros);
-  }
+  if (!client) return gerarDietaMock(caloriasAlvo, macros);
   const prompt = `Gere uma dieta brasileira com ${caloriasAlvo} kcal, proteinas ${macros.proteinas}g, carboidratos ${macros.carboidratos}g, gorduras ${macros.gorduras}g. Objetivo: ${objetivo}. Restrições: ${restricoes || 'nenhuma'}. Retorne JSON com array refeicoes [{nome, horario, alimentos:[{nome,quantidade,calorias,proteinas,carboidratos,gorduras}], calorias}].`;
   try {
-    const res = await client.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [{ role: 'user', content: prompt }],
-      response_format: { type: 'json_object' }
-    });
+    const res = await client.chat.completions.create({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: prompt }], response_format: { type: 'json_object' } });
     return JSON.parse(res.choices[0].message.content);
-  } catch {
-    return gerarDietaMock(caloriasAlvo, macros);
-  }
+  } catch { return gerarDietaMock(caloriasAlvo, macros); }
 }
 
 function gerarDietaMock(caloriasAlvo, macros) {
@@ -122,4 +194,22 @@ async function gerarTreinoOpenAI({ objetivo, nivel, frequencia }) {
   } catch { return gerarTreinoMock({ objetivo, nivel, frequencia }); }
 }
 
-module.exports = { buscarEdamam, buscarCalorieNinjas, buscarOpenFoodFacts, buscarUSDA, buscarAlimentoUniversal, gerarDietaOpenAI, gerarTreinoOpenAI, gerarDietaMock, gerarTreinoMock };
+module.exports = {
+  ALIMENTOS_FALLBACK,
+  MAPA_REFEICAO,
+  buscarAlimento,
+  buscarAlimentosParaConsulta,
+  montarRefeicao,
+  buscarNaApiTaco,
+  buscarFallback,
+  buscarFallbackLista,
+  buscarEdamam,
+  buscarCalorieNinjas,
+  buscarOpenFoodFacts,
+  buscarUSDA,
+  buscarAlimentoUniversal,
+  gerarDietaOpenAI,
+  gerarTreinoOpenAI,
+  gerarDietaMock,
+  gerarTreinoMock
+};
